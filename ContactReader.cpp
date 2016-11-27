@@ -71,6 +71,7 @@ void ContactReader::open(const QString &filename)
     {
         emit clearContacts();
         emit updateProgress(row, 0, "");
+        QList<Contact>().swap(contactList);
         setDelay(row);
 
         for(int i = 0; i < row; ++i)
