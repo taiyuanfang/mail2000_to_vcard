@@ -29,13 +29,17 @@ protected:
     virtual void dragMoveEvent(QDragMoveEvent *event);
     virtual void dragLeaveEvent(QDragLeaveEvent *event);
     virtual void dropEvent(QDropEvent *event);
+    virtual void closeEvent(QCloseEvent *event);
 
 private:
-    QThread thread;
+    Ui::MainWindow *ui;
     QLabel *statLabel;
     QLabel *progressLabel;
     QProgressBar *statProgress;
+    QThread thread;
     ContactReader contactReader;
+
+private:
     QTreeWidgetItem *getRootItem(const QString &str);
     QTreeWidgetItem *addChildItem(QTreeWidgetItem *parentItem, const QString &str);
 
@@ -49,9 +53,6 @@ private slots:
 signals:
     void open(const QString &filename);
     void save(const QString &filename);
-
-private:
-    Ui::MainWindow *ui;
 };
 
 #endif // MAINWINDOW_H

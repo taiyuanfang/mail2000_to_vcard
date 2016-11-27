@@ -8,9 +8,9 @@
 //--------------------------------------------------------------------------------
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
+    , ui(new Ui::MainWindow)
     , statLabel(NULL)
     , statProgress(NULL)
-    , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
 
@@ -23,9 +23,6 @@ MainWindow::MainWindow(QWidget *parent)
     ui->statusBar->addPermanentWidget(progressLabel);
     ui->statusBar->addPermanentWidget(statProgress);
 
-    contactReader.moveToThread(&thread);
-    thread.start();
-
     connect(&contactReader, SIGNAL(clearContacts()), this, SLOT(clearContacts()));
     connect(&contactReader, SIGNAL(addContact(const Contact*)), this, SLOT(addContact(const Contact*)));
     connect(&contactReader, SIGNAL(updateProgress(int,int,QString)), this, SLOT(updateProgress(int,int,QString)));
@@ -33,19 +30,84 @@ MainWindow::MainWindow(QWidget *parent)
     connect(this, SIGNAL(save(QString)), &contactReader, SLOT(save(QString)));
 
     this->setAcceptDrops(true);
+
+    contactReader.moveToThread(&thread);
+    thread.start();
 }
 //--------------------------------------------------------------------------------
 MainWindow::~MainWindow()
 {
+    qDebug() << "thread.terminate";
     thread.terminate();
     thread.wait(500);
 
+    qDebug() << "delete ui";
     delete ui;
+    delete statLabel;
+    delete progressLabel;
+    delete statProgress;
 }
 //--------------------------------------------------------------------------------
 void MainWindow::dragEnterEvent(QDragEnterEvent *event)
 {
-    event->acceptProposedAction();
+    const QMimeData* mimeData = event->mimeData();
+    if(mimeData->hasUrls())
+    {
+        QList<QUrl> urlList = mimeData->urls();
+        if(urlList.count() != 1)
+        {
+            statLabel->setText("single file only!!!");
+            return;
+        }
+
+        qDebug() << "drag enter:" << urlList.at(0).toLocalFile();
+        QFileInfo info(urlList.at(0).toLocalFile());
+//        qDebug() << "filePath" << info.filePath();
+//        qDebug() << "absoluteFilePath" << info.absoluteFilePath();
+//        qDebug() << "canonicalFilePath" << info.canonicalFilePath();
+//        qDebug() << "fileName" << info.fileName();
+//        qDebug() << "baseName" << info.baseName();
+//        qDebug() << "completeBaseName" << info.completeBaseName();
+//        qDebug() << "suffix" << info.suffix();
+//        qDebug() << "bundleName" << info.bundleName();
+//        qDebug() << "completeSuffix" << info.completeSuffix();
+//        qDebug() << "path" << info.path();
+//        qDebug() << "absolutePath" << info.absolutePath();
+//        qDebug() << "canonicalPath" << info.canonicalPath();
+//        qDebug() << "info.isRelative()" << info.isRelative();
+//        qDebug() << "info.isAbsolute()" << info.isAbsolute();
+//        qDebug() << "info.isFile()" << info.isFile();
+//        qDebug() << "info.isDir()" << info.isDir();
+//        qDebug() << "info.isSymLink()" << info.isSymLink();
+//        qDebug() << "info.isRoot()" << info.isRoot();
+//        qDebug() << "info.isBundle()" << info.isBundle();
+
+        if(!info.isFile())
+        {
+            statLabel->setText("target is not a file!!!");
+            return;
+        }
+
+        if(info.isSymLink())
+        {
+            statLabel->setText("target is a symlink!!!");
+            return;
+        }
+
+        if(!info.isReadable())
+        {
+            statLabel->setText("target is not readable!!!");
+            return;
+        }
+
+        if(info.suffix().toLower() != "csv")
+        {
+            statLabel->setText("target is not a csv file!!!");
+            return;
+        }
+
+        event->acceptProposedAction();
+    }
 }
 //--------------------------------------------------------------------------------
 void MainWindow::dragMoveEvent(QDragMoveEvent *event)
@@ -61,62 +123,12 @@ void MainWindow::dragLeaveEvent(QDragLeaveEvent *event)
 void MainWindow::dropEvent(QDropEvent *event)
 {
     const QMimeData* mimeData = event->mimeData();
-
-    qDebug() << "mimeData->hasUrls()" << mimeData->hasUrls();
     if (mimeData->hasUrls())
     {
-        QStringList pathList;
         QList<QUrl> urlList = mimeData->urls();
-
-        qDebug() << "urlList.count()" << urlList.count();
-        if(urlList.count() == 1)
-        {
-            QFileInfo info(urlList.at(0).toLocalFile());
-//            qDebug() << "filePath" << info.filePath();
-//            qDebug() << "absoluteFilePath" << info.absoluteFilePath();
-//            qDebug() << "canonicalFilePath" << info.canonicalFilePath();
-//            qDebug() << "fileName" << info.fileName();
-//            qDebug() << "baseName" << info.baseName();
-//            qDebug() << "completeBaseName" << info.completeBaseName();
-//            qDebug() << "suffix" << info.suffix();
-//            qDebug() << "bundleName" << info.bundleName();
-//            qDebug() << "completeSuffix" << info.completeSuffix();
-//            qDebug() << "path" << info.path();
-//            qDebug() << "absolutePath" << info.absolutePath();
-//            qDebug() << "canonicalPath" << info.canonicalPath();
-//            qDebug() << "info.isRelative()" << info.isRelative();
-//            qDebug() << "info.isAbsolute()" << info.isAbsolute();
-//            qDebug() << "info.isFile()" << info.isFile();
-//            qDebug() << "info.isDir()" << info.isDir();
-//            qDebug() << "info.isSymLink()" << info.isSymLink();
-//            qDebug() << "info.isRoot()" << info.isRoot();
-//            qDebug() << "info.isBundle()" << info.isBundle();
-
-            if(!info.isFile())
-            {
-                statLabel->setText("target is not a file!!!");
-                return;
-            }
-
-            if(!info.isReadable())
-            {
-                statLabel->setText("target is not readable!!!");
-                return;
-            }
-
-            if(info.suffix().toLower() != "csv")
-            {
-                statLabel->setText("target is not a csv file!!!");
-                return;
-            }
-
-            event->acceptProposedAction();
-            emit open(info.canonicalFilePath());
-        }
-        else
-        {
-            statLabel->setText("single file only!!!");
-        }
+        event->acceptProposedAction();
+        this->raise(); // set focus to this window
+        emit open(QFileInfo(urlList.at(0).toLocalFile()).canonicalFilePath());
     }
 }
 //--------------------------------------------------------------------------------
@@ -220,5 +232,14 @@ void MainWindow::updateProgress(int total, int pos, const QString &str)
         ui->actionOpen->setEnabled(true);
         ui->actionSave->setEnabled(true);
     }
+}
+//--------------------------------------------------------------------------------
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    qDebug() << "thread.requestInterruption";
+    thread.requestInterruption();
+
+    qDebug() << "event->accept";
+    event->accept();
 }
 //--------------------------------------------------------------------------------
