@@ -40,9 +40,9 @@ ContactReader::~ContactReader(void)
 {
 }
 //--------------------------------------------------------------------------------
-unsigned long ContactReader::getDelayMsec(int row)
+unsigned long ContactReader::getDelayMsec(int total)
 {
-    unsigned long delayMsec = 1000 / row;
+    unsigned long delayMsec = 1000 / total;
 
     if(delayMsec < 1)
         delayMsec = 1;
@@ -52,6 +52,8 @@ unsigned long ContactReader::getDelayMsec(int row)
 //--------------------------------------------------------------------------------
 void ContactReader::open(const QString &filename)
 {
+    qDebug() << "ContactReader open:" << filename;
+
     QFile file(filename);
     if(!file.open(QFile::ReadOnly))
     {
@@ -59,33 +61,48 @@ void ContactReader::open(const QString &filename)
         return;
     }
 
-    QStringList slist;
-    while (!file.atEnd())
+    int total = 0;
+    int pos = 0;
+    while(!file.atEnd())
     {
-        QByteArray line = file.readLine();
-        slist.append(line);
+        if(QThread::currentThread()->isInterruptionRequested())
+        {
+            emit updateProgress(0, 0, "interrupt");
+            return;
+        }
+
+        file.readLine();
+        ++total;
     }
 
-    int row = slist.count();
-    if(row > 0)
+    if(total > 0)
     {
         emit clearContacts();
-        emit updateProgress(row, 0, "");
+        emit updateProgress(total, 0, "");
         QList<Contact>().swap(contactList);
-        unsigned long delayMsec = getDelayMsec(row);
+        unsigned long delayMsec = getDelayMsec(total);
+        QString line;
 
-        for(int i = 0; i < row; ++i)
+        file.seek(0);
+        while (!file.atEnd())
         {
-            if(!parse(slist[i]))
-                qWarning() << i << slist[i];
+            if(QThread::currentThread()->isInterruptionRequested())
+            {
+                emit updateProgress(pos, pos, "interrupt");
+                return;
+            }
 
-            emit updateProgress(row, i + 1, "importing");
+            line = file.readLine();
+            if(!parse(line))
+                qWarning() << "parse fail:" << line;
+
+            emit updateProgress(total, ++pos, "importing");
             QThread::msleep(delayMsec);
         }
     }
 
     file.close();
-    emit updateProgress(row, row, "done");
+    emit updateProgress(total, total, "done");
 }
 //--------------------------------------------------------------------------------
 bool ContactReader::parse(const QString &line)
@@ -126,24 +143,30 @@ bool ContactReader::parse(const QString &line)
 //--------------------------------------------------------------------------------
 void ContactReader::save(const QString &filename)
 {
-    QFile file(filename);
+    qDebug() << "ContactReader save:" << filename;
 
+    QFile file(filename);
     if(!file.open(QFile::ReadWrite))
     {
         emit updateProgress(0, 0, file.errorString());
         return;
     }
 
-    QTextStream stream(&file);
-
-    int row = contactList.count();
-    if(row > 0)
+    int total = contactList.count();
+    if(total > 0)
     {
-        emit updateProgress(row, 0, "");
-        unsigned long delayMsec = getDelayMsec(row);
+        emit updateProgress(total, 0, "");
+        unsigned long delayMsec = getDelayMsec(total);
+        QTextStream stream(&file);
 
-        for(int i = 0; i < row; ++i)
+        for(int i = 0; i < total; ++i)
         {
+            if(QThread::currentThread()->isInterruptionRequested())
+            {
+                emit updateProgress(i, i, "interrupt");
+                return;
+            }
+
             Contact& c = contactList[i];
             stream << "BEGIN:VCARD" << endl;
             stream << "VERSION:3.0" << endl;
@@ -155,12 +178,12 @@ void ContactReader::save(const QString &filename)
             stream << "TEL;type=CELL:" << c.cellPhone << endl;
             stream << "END:VCARD" << endl;
 
-            emit updateProgress(row, i + 1, "exporting");
+            emit updateProgress(total, i + 1, "exporting");
             QThread::msleep(delayMsec);
         }
     }
 
     file.close();
-    emit updateProgress(row, row, "done");
+    emit updateProgress(total, total, "done");
 }
 //--------------------------------------------------------------------------------

@@ -36,7 +36,7 @@ public slots:
 
 private:
     bool parse(const QString &line);
-    unsigned long getDelayMsec(int row);
+    unsigned long getDelayMsec(int total);
 
 private:
     QList<Contact> contactList;
