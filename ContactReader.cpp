@@ -12,8 +12,6 @@
 #define COL_CONTACT_NOTE       9
 #define COL_CONTACT_CELLPHONE  30
 #define COL_CONTACT_EXTNUMBER  50
-
-#define DELAY_MSEC             5
 //--------------------------------------------------------------------------------
 Contact::Contact()
 {
@@ -35,7 +33,6 @@ Contact::Contact(const Contact &ref)
 //--------------------------------------------------------------------------------
 ContactReader::ContactReader(void)
     : QObject()
-    , delayMsec(DELAY_MSEC)
 {
 }
 //--------------------------------------------------------------------------------
@@ -43,11 +40,14 @@ ContactReader::~ContactReader(void)
 {
 }
 //--------------------------------------------------------------------------------
-void ContactReader::setDelay(int row)
+unsigned long ContactReader::getDelayMsec(int row)
 {
-    delayMsec = 1000 / row;
+    unsigned long delayMsec = 1000 / row;
+
     if(delayMsec < 1)
         delayMsec = 1;
+
+    return delayMsec;
 }
 //--------------------------------------------------------------------------------
 void ContactReader::open(const QString &filename)
@@ -72,7 +72,7 @@ void ContactReader::open(const QString &filename)
         emit clearContacts();
         emit updateProgress(row, 0, "");
         QList<Contact>().swap(contactList);
-        setDelay(row);
+        unsigned long delayMsec = getDelayMsec(row);
 
         for(int i = 0; i < row; ++i)
         {
@@ -140,7 +140,7 @@ void ContactReader::save(const QString &filename)
     if(row > 0)
     {
         emit updateProgress(row, 0, "");
-        setDelay(row);
+        unsigned long delayMsec = getDelayMsec(row);
 
         for(int i = 0; i < row; ++i)
         {

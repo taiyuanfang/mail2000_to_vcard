@@ -36,11 +36,10 @@ public slots:
 
 private:
     bool parse(const QString &line);
-    void setDelay(int row);
+    unsigned long getDelayMsec(int row);
 
 private:
     QList<Contact> contactList;
-    unsigned long delayMsec;
 
 signals:
     void clearContacts();
